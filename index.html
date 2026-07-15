@@ -41,12 +41,25 @@
   }
   header{
     padding:26px 20px 16px 60px;
+    display:flex; justify-content:space-between; align-items:flex-start;
   }
   header h1{
     margin:0; font-size:24px; color:var(--accent); letter-spacing:.5px;
   }
   header .sub{
     font-size:12.5px; color:var(--muted); margin-top:4px;
+  }
+  #settingsBtn{
+    background:white; border:1px solid var(--line); border-radius:50%;
+    width:38px; height:38px; font-size:17px; cursor:pointer; flex-shrink:0;
+  }
+  .nameRow{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 4px; border-bottom:1px dotted var(--line);
+  }
+  .nameRow input{
+    flex:1; font-size:14px; padding:8px 10px; border-radius:6px;
+    border:1px solid var(--line); background:white; color:var(--ink);
   }
   section{ padding:6px 20px 6px 60px; }
   h2{
@@ -80,18 +93,18 @@
     cursor:pointer; line-height:1.3;
   }
   .slotBtn.filled{ background:#eef6ef; border-color:var(--get); color:var(--ink); font-weight:600; }
-  #modalOverlay{
+  #modalOverlay, #settingsOverlay{
     position:fixed; inset:0; background:rgba(13,22,38,.55);
     display:none; align-items:flex-end; justify-content:center; z-index:50;
   }
-  #modalOverlay.open{ display:flex; }
-  #modalBox{
+  #modalOverlay.open, #settingsOverlay.open{ display:flex; }
+  #modalBox, #settingsBox{
     width:100%; max-width:560px; background:var(--paper);
     border-radius:14px 14px 0 0; padding:18px 20px 22px;
     max-height:82vh; overflow-y:auto;
   }
-  #modalBox h3{ margin:0 0 2px; font-size:16px; color:var(--accent); }
-  #modalBox .msub{ font-size:11.5px; color:var(--muted); margin-bottom:12px; }
+  #modalBox h3, #settingsBox h3{ margin:0 0 2px; font-size:16px; color:var(--accent); }
+  #modalBox .msub, #settingsBox .msub{ font-size:11.5px; color:var(--muted); margin-bottom:12px; }
   .checkRow{
     display:flex; align-items:center; gap:8px;
     padding:8px 4px; border-bottom:1px dotted var(--line); font-size:14px;
@@ -142,12 +155,15 @@
 <body>
 <div id="app">
   <header>
-    <h1>Kajim-bola Laoka</h1>
-    <div class="sub">Fizarana ny vidin-tsakafo isan'andro &mdash; Ar</div>
+    <div>
+      <h1>Kajim-bola Laoka</h1>
+      <div class="sub">Fizarana ny vidin-tsakafo isan'andro &mdash; Ar</div>
+    </div>
+    <button id="settingsBtn" type="button" title="Ovay ny anarana">&#9881;</button>
   </header>
 
   <section>
-    <h2>Mpianakavy (7)</h2>
+    <h2 id="peopleTitle">Mpianakavy (7)</h2>
     <div id="people"></div>
   </section>
 
@@ -189,19 +205,34 @@
   </div>
 </div>
 
+<div id="settingsOverlay">
+  <div id="settingsBox">
+    <h3>Ovay ny anaran'ny mpianakavy</h3>
+    <div class="msub">Ovay ny anarana araka izay tianao. Hiova daholo ny tantara efa voarakitra.</div>
+    <div id="nameList"></div>
+    <div id="modalBtns">
+      <button id="cancelNames" type="button">Aoka</button>
+      <button id="saveNames" type="button">Tehirizo</button>
+    </div>
+  </div>
+</div>
+
 <script>
-const PEOPLE = ['Lucas','Finaritra','Miaro','Romy','Nomena','Finoana','Mandresy'];
+const DEFAULT_PEOPLE = ['Lucas','Finaritra','Miaro','Romy','Nomena','Finoana','Mandresy'];
 const DAYS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const MEALS = ['Maraina','Atoandro','Hariva'];
 const DEFAULT_PRICE = 300;
 const STORAGE_KEY = 'laoka-schedule-v4';
+const PEOPLE_KEY = 'laoka-people-v1';
 
+let PEOPLE = [...DEFAULT_PEOPLE];
 let schedule = {}; // key: "Lundi-Maraina" -> { participants: [names], payer: name, price: number }
 let activeKey = null;
 
 function slotKey(day, meal){ return day+'-'+meal; }
 
 function renderPeople(){
+  document.getElementById('peopleTitle').textContent = `Mpianakavy (${PEOPLE.length})`;
   document.getElementById('people').innerHTML = PEOPLE.map(p => `<span class="tag">${p}</span>`).join('');
 }
 
@@ -285,6 +316,62 @@ document.getElementById('saveSlot').addEventListener('click', () => {
   document.getElementById('modalOverlay').classList.remove('open');
 });
 
+// --- Settings: edit people names ---
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('nameList').innerHTML = PEOPLE.map((p, i) => `
+    <div class="nameRow">
+      <input type="text" id="nm-${i}" value="${p}">
+    </div>
+  `).join('');
+  document.getElementById('settingsOverlay').classList.add('open');
+});
+
+document.getElementById('cancelNames').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.remove('open');
+});
+
+document.getElementById('saveNames').addEventListener('click', () => {
+  const newNames = PEOPLE.map((p, i) => {
+    const val = document.getElementById(`nm-${i}`).value.trim();
+    return val || p;
+  });
+
+  // rename inside existing schedule entries so past data stays consistent
+  const renameMap = {};
+  PEOPLE.forEach((old, i) => { if(old !== newNames[i]) renameMap[old] = newNames[i]; });
+  if(Object.keys(renameMap).length > 0){
+    Object.keys(schedule).forEach(key => {
+      const slot = schedule[key];
+      slot.participants = slot.participants.map(n => renameMap[n] || n);
+      slot.payer = renameMap[slot.payer] || slot.payer;
+    });
+  }
+
+  PEOPLE = newNames;
+  savePeople();
+  saveSchedule();
+  renderPeople();
+  renderGrid();
+  document.getElementById('settingsOverlay').classList.remove('open');
+});
+
+async function loadPeople(){
+  try{
+    const raw = localStorage.getItem(PEOPLE_KEY);
+    PEOPLE = raw ? JSON.parse(raw) : [...DEFAULT_PEOPLE];
+  }catch(e){
+    PEOPLE = [...DEFAULT_PEOPLE];
+  }
+}
+
+async function savePeople(){
+  try{
+    localStorage.setItem(PEOPLE_KEY, JSON.stringify(PEOPLE));
+  }catch(e){
+    console.error('Storage error', e);
+  }
+}
+
 async function loadSchedule(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -316,9 +403,13 @@ function calculate(){
       mealsFilled++;
       const { payer, participants, price } = slot;
       const others = participants.filter(p => p !== payer);
+      if(!stats[payer]) stats[payer] = { treated:0, received:0, owed:0 };
       stats[payer].treated += 1;
       stats[payer].received += price * others.length;
-      others.forEach(p => stats[p].owed += price);
+      others.forEach(p => {
+        if(!stats[p]) stats[p] = { treated:0, received:0, owed:0 };
+        stats[p].owed += price;
+      });
       totalMoney += price * participants.length;
     });
   });
@@ -334,7 +425,8 @@ function calculate(){
 
   let html = '';
   PEOPLE.forEach(p => {
-    const net = stats[p].received - stats[p].owed;
+    const s = stats[p] || { treated:0, received:0, owed:0 };
+    const net = s.received - s.owed;
     const netClass = net > 0 ? 'pos' : (net < 0 ? 'neg' : 'zero');
     const netLabel = net > 0 ? ('+' + net.toLocaleString('fr-FR') + ' Ar (mahazo)')
       : net < 0 ? (net.toLocaleString('fr-FR') + ' Ar (mbola tsy aloa)')
@@ -342,7 +434,7 @@ function calculate(){
     html += `<div class="prow">
       <div>
         <div class="name">${p}</div>
-        <div class="detail">Niantoka ${stats[p].treated} tora &middot; Azo ${stats[p].received.toLocaleString('fr-FR')} Ar &middot; Tsy mbola aloa ${stats[p].owed.toLocaleString('fr-FR')} Ar</div>
+        <div class="detail">Niantoka ${s.treated} tora &middot; Azo ${s.received.toLocaleString('fr-FR')} Ar &middot; Tsy mbola aloa ${s.owed.toLocaleString('fr-FR')} Ar</div>
       </div>
       <div class="net ${netClass}">${netLabel}</div>
     </div>`;
@@ -354,8 +446,11 @@ function calculate(){
 
 document.getElementById('calcBtn').addEventListener('click', calculate);
 
-renderPeople();
-loadSchedule();
+(async function init(){
+  await loadPeople();
+  renderPeople();
+  await loadSchedule();
+})();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
