@@ -99,6 +99,12 @@
   .checkRow input[type=checkbox]{ width:18px; height:18px; }
   #payerWrap{ margin-top:14px; }
   #payerWrap label{ font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+  #priceWrap{ margin-top:14px; }
+  #priceWrap label{ font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+  #priceInput{
+    width:100%; font-size:15px; padding:9px 10px; border-radius:6px;
+    border:1px solid var(--line); background:white; color:var(--ink); margin-top:4px;
+  }
   #modalBtns{ display:flex; gap:10px; margin-top:16px; }
   #modalBtns button{
     flex:1; padding:11px; border:none; border-radius:6px;
@@ -137,17 +143,17 @@
 <div id="app">
   <header>
     <h1>Kajim-bola Laoka</h1>
-    <div class="sub">Fizarana ny vidin-tsakafo isan'andro &mdash; 300 Ar/olona</div>
+    <div class="sub">Fizarana ny vidin-tsakafo isan'andro &mdash; Ar</div>
   </header>
 
   <section>
-    <h2>Mpianakavy (6)</h2>
+    <h2>Mpianakavy (7)</h2>
     <div id="people"></div>
   </section>
 
   <section>
     <h2>Iza no nisakafo, ary iza no niantoka?</h2>
-    <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Tsindrio ny tsipika mba hifidianana ny olona nisakafo tamin'io sakafo io, sy izay niantoka.</div>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Tsindrio ny tsipika mba hifidianana ny olona nisakafo tamin'io sakafo io, ny vidiny isaky ny olona, sy izay niantoka.</div>
     <table id="grid"></table>
     <button id="calcBtn">KAJIO</button>
   </section>
@@ -157,7 +163,7 @@
     <div id="results"><div style="color:var(--muted); font-size:13px;">Feno ny latabatra ambony aloha, dia tsindrio KAJIO.</div></div>
     <div id="totalBox" style="display:none;"></div>
     <div id="legend">
-      Isaky ny sakafo, 300 Ar/olona no anisan'ny nisakafo teo (tsy voatery 6 daholo). Ny olona niantoka no mandoa ny vola rehetra aloha, ary ny hafa nisakafo teo dia mamerina 300 Ar avy izay tokony aloany aminy.
+      Isaky ny sakafo, ny olona niantoka no mandoa ny vola rehetra aloha, ary ny hafa nisakafo teo dia mamerina ny anjarany (araka ny vidiny voafaritra ho an'io sakafo io) izay tokony aloany aminy.
     </div>
   </section>
 </div>
@@ -165,8 +171,12 @@
 <div id="modalOverlay">
   <div id="modalBox">
     <h3 id="modalTitle">Sakafo</h3>
-    <div class="msub">Marika ny olona nisakafo teo, dia safidio izay niantoka.</div>
+    <div class="msub">Marika ny olona nisakafo teo, ampidiro ny vidiny isan'olona, dia safidio izay niantoka.</div>
     <div id="checkList"></div>
+    <div id="priceWrap">
+      <label>Vidiny isan'olona (Ar)</label>
+      <input type="number" id="priceInput" placeholder="Ohatra: 300" step="100" min="0" max="1000" inputmode="numeric">
+    </div>
     <div id="payerWrap">
       <label>Iza no niantoka?</label>
       <select id="payerSelect"></select>
@@ -180,13 +190,13 @@
 </div>
 
 <script>
-const PEOPLE = ['Lucas','Finaritra','Miaro','Romy','Nomena','Finoana'];
+const PEOPLE = ['Lucas','Finaritra','Miaro','Romy','Nomena','Finoana','Mandresy'];
 const DAYS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const MEALS = ['Maraina','Atoandro','Hariva'];
-const PRICE = 300;
-const STORAGE_KEY = 'laoka-schedule-v3';
+const DEFAULT_PRICE = 300;
+const STORAGE_KEY = 'laoka-schedule-v4';
 
-let schedule = {}; // key: "Lundi-Maraina" -> { participants: [names], payer: name }
+let schedule = {}; // key: "Lundi-Maraina" -> { participants: [names], payer: name, price: number }
 let activeKey = null;
 
 function slotKey(day, meal){ return day+'-'+meal; }
@@ -204,7 +214,7 @@ function renderGrid(){
       const key = slotKey(day, meal);
       const slot = schedule[key];
       const filled = slot && slot.payer;
-      const label = filled ? `${slot.payer}<br>(${slot.participants.length}p)` : '&mdash;';
+      const label = filled ? `${slot.payer}<br>(${slot.participants.length}p &middot; ${slot.price}Ar)` : '&mdash;';
       html += `<td><button type="button" class="slotBtn${filled?' filled':''}" data-key="${key}">${label}</button></td>`;
     });
     html += '</tr>';
@@ -232,6 +242,8 @@ function openModal(key){
   document.querySelectorAll('#checkList input[type=checkbox]').forEach(chk => {
     chk.addEventListener('change', updatePayerOptions);
   });
+
+  document.getElementById('priceInput').value = slot ? slot.price : DEFAULT_PRICE;
 
   updatePayerOptions();
   if(slot && slot.payer) document.getElementById('payerSelect').value = slot.payer;
@@ -261,10 +273,12 @@ document.getElementById('clearSlot').addEventListener('click', () => {
 document.getElementById('saveSlot').addEventListener('click', () => {
   const checked = [...document.querySelectorAll('#checkList input[type=checkbox]:checked')].map(c => c.value);
   const payer = document.getElementById('payerSelect').value;
+  const priceRaw = document.getElementById('priceInput').value;
+  const price = parseFloat(priceRaw) || DEFAULT_PRICE;
   if(checked.length === 0 || !payer){
     delete schedule[activeKey];
   } else {
-    schedule[activeKey] = { participants: checked, payer };
+    schedule[activeKey] = { participants: checked, payer, price };
   }
   saveSchedule();
   renderGrid();
@@ -300,12 +314,12 @@ function calculate(){
       const slot = schedule[slotKey(day, meal)];
       if(!slot || !slot.payer || !slot.participants || slot.participants.length === 0) return;
       mealsFilled++;
-      const { payer, participants } = slot;
+      const { payer, participants, price } = slot;
       const others = participants.filter(p => p !== payer);
       stats[payer].treated += 1;
-      stats[payer].received += PRICE * others.length;
-      others.forEach(p => stats[p].owed += PRICE);
-      totalMoney += PRICE * participants.length;
+      stats[payer].received += price * others.length;
+      others.forEach(p => stats[p].owed += price);
+      totalMoney += price * participants.length;
     });
   });
 
@@ -351,5 +365,4 @@ if('serviceWorker' in navigator){
 </script>
 </body>
 </html>
-
 
